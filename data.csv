@@ -1,0 +1,7 @@
+Google;0.18
+Meta;0.04
+Microsoft;0.08
+Meta,Google;0.1
+Microsoft,Google;0.26
+Meta,Microsoft;0.07
+Meta,Microsoft,Google;0.27
