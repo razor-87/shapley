@@ -28,13 +28,13 @@ type sValues struct {
 
 func main() {
 	start := time.Now()
-	if err := shapley(); err != nil {
-		log.Fatalf("[ERROR] shapley error, %v", err)
+	if err := run(); err != nil {
+		log.Fatalf("[ERROR] %v", err)
 	}
 	fmt.Printf("Measure time: %s\n", time.Since(start))
 }
 
-func shapley() error {
+func run() error {
 	f, err := os.Open("data.csv")
 	if err != nil {
 		return fmt.Errorf("failed to open csv file, %w", err)
@@ -47,16 +47,94 @@ func shapley() error {
 
 	records, err := prepare(f)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to prepare data, %w", err)
 	}
 
-	N, existsWorth, err := handle(records)
+	channels, worths, err := handle(records)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to handle data, %w", err)
 	}
 
-	n := len(N)
-	V := makeV(existsWorth)
+	sValues := shapley(channels, worths)
+	if err != nil {
+		return fmt.Errorf("failed to calculate Shapley values, %w", err)
+	}
+
+	var checkSum float64
+	for channel, value := range sValues {
+		checkSum += value
+		fmt.Printf("Channel: %s, Shapley value: %f\n", channel, value)
+	}
+	if notEqualsOne(checkSum) {
+		return fmt.Errorf("sum of Shapley values isn't equal to one, %v", checkSum)
+	}
+
+	return nil
+}
+
+func prepare(r io.Reader) ([][]string, error) {
+	cr := csv.NewReader(r)
+	cr.Comma = ';'
+	records, err := cr.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read csv file, %w", err)
+	}
+
+	return records, nil
+}
+
+func handle(records [][]string) (channels []string, worths map[string]float64, err error) {
+	set := make(map[string]struct{})
+	cValues := make(map[string]float64, len(records))
+	for _, rec := range records {
+		if l := len(rec); l < 2 {
+			return nil, nil, fmt.Errorf("length of slice less 2, %d", l)
+		}
+
+		row := strings.Split(rec[0], ",")
+		sort.Strings(row)
+		coalition := strings.Join(row, " ")
+		val, err := strconv.ParseFloat(rec[1], 64)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to convert string to int, %w", err)
+		}
+
+		for _, source := range row {
+			set[source] = struct{}{}
+		}
+		cValues[coalition] = val
+	}
+
+	channels = make([]string, 0, len(set))
+	for channel := range set {
+		channels = append(channels, channel)
+	}
+	sort.Strings(channels)
+
+	worths = make(map[string]float64, len(records))
+	for coalition := range cValues {
+		for c := range cValues {
+			if containsAll(coalition, c) {
+				worths[coalition] += cValues[c]
+			}
+		}
+	}
+
+	return channels, worths, nil
+}
+
+func containsAll(coalition, c string) bool {
+	for _, player := range strings.Fields(c) {
+		if !strings.Contains(coalition, player) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func shapley(channels []string, worths map[string]float64) map[string]float64 {
+	n := len(channels)
 	svs := &sValues{values: make(map[string]float64, n)}
 
 	sets := make([]chan []int, n)
@@ -70,7 +148,7 @@ func shapley() error {
 
 	var wgg sync.WaitGroup
 	wgg.Add(n)
-	for i, channel := range N {
+	for i, channel := range channels {
 		go func(i int, channel string) {
 			defer wgg.Done()
 
@@ -88,7 +166,7 @@ func shapley() error {
 
 						S := make([]string, len(subsetIdxs))
 						for ii := range subsetIdxs {
-							S[ii] = N[subsetIdxs[ii]]
+							S[ii] = channels[subsetIdxs[ii]]
 						}
 						k := len(S)
 						A := strings.Join(S, " ")
@@ -102,7 +180,7 @@ func shapley() error {
 						// Weight = |S|!(n-|S|-1)!/n!
 						weight := nominator / denominator
 						// Marginal contribution = v(S U {i})-v(S)
-						contrib := V(Ai) - V(A)
+						contrib := worths[Ai] - worths[A]
 
 						chW <- weight * contrib
 					}
@@ -122,31 +200,16 @@ func shapley() error {
 			close(chW)
 
 			s := <-chSum
-			s += V(channel) / float64(n)
 
 			svs.mu.Lock()
-			svs.values[channel] += math.Round(s*1000) / 1000
+			svs.values[channel] = s + worths[channel]/float64(n)
 			svs.mu.Unlock()
 
 		}(i, channel)
 	}
 	wgg.Wait()
 
-	var checkSum float64
-	for channel, value := range svs.values {
-		fmt.Printf("Channel: %s, Shapley value: %f\n", channel, value)
-		checkSum += value
-	}
-	fmt.Printf("Correct: %t\n", checkSum == 1)
-
-	return nil
-}
-
-func factorial(n int) float64 {
-	if n >= upperLimit {
-		panic(fmt.Errorf("factorials upper limit"))
-	}
-	return float64(factorials[n])
+	return svs.values
 }
 
 func makeSubsetsIdxs(n int, sets []chan []int) {
@@ -175,69 +238,13 @@ func makeSubsetsIdxs(n int, sets []chan []int) {
 	}()
 }
 
-func makeV(existsWorth map[string]float64) func(A string) (worth float64) {
-	return func(A string) (worth float64) {
-		return existsWorth[A]
+func factorial(n int) float64 {
+	if n >= upperLimit {
+		panic(fmt.Errorf("factorials upper limit"))
 	}
+	return float64(factorials[n])
 }
 
-func prepare(r io.Reader) ([][]string, error) {
-	cr := csv.NewReader(r)
-	cr.Comma = ';'
-	records, err := cr.ReadAll()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read csv file, %w", err)
-	}
-
-	return records, nil
-}
-
-func handle(records [][]string) (channels []string, existsWorth map[string]float64, err error) {
-	set := make(map[string]struct{})
-	cValues := make(map[string]float64, len(records))
-	for _, rec := range records {
-		if l := len(rec); l < 2 {
-			return nil, nil, fmt.Errorf("length of slice less 2, %d", l)
-		}
-
-		row := strings.Split(rec[0], ",")
-		sort.Strings(row)
-		coalition := strings.Join(row, " ")
-		val, err := strconv.ParseFloat(rec[1], 64)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to convert string to int, %w", err)
-		}
-
-		for _, source := range row {
-			set[source] = struct{}{}
-		}
-		cValues[coalition] = val
-	}
-
-	channels = make([]string, 0, len(set))
-	for channel := range set {
-		channels = append(channels, channel)
-	}
-	sort.Strings(channels)
-
-	existsWorth = make(map[string]float64, len(records))
-	for coalition := range cValues {
-		for c := range cValues {
-			if containsAll(coalition, c) {
-				existsWorth[coalition] += cValues[c]
-			}
-		}
-	}
-
-	return channels, existsWorth, nil
-}
-
-func containsAll(coalition, c string) bool {
-	for _, player := range strings.Fields(c) {
-		if !strings.Contains(coalition, player) {
-			return false
-		}
-	}
-
-	return true
+func notEqualsOne(f float64) bool {
+	return math.Abs(f-1) > 1e-9
 }
