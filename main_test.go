@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"io"
 	"math"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -28,6 +30,11 @@ func mockChannels() []string {
 
 func mockWorths() map[string]float64 {
 	return map[string]float64{"Google": 0.18, "Google Meta": 0.32, "Google Meta Microsoft": 1, "Google Microsoft": 0.52, "Meta": 0.04, "Meta Microsoft": 0.19, "Microsoft": 0.08}
+}
+
+func mockReader() io.Reader {
+	f, _ := os.ReadFile("data.csv")
+	return bytes.NewReader(f)
 }
 
 func Test_prepare(t *testing.T) {
@@ -122,5 +129,28 @@ func Test_shapley(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func BenchmarkPrepare(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		prepare(mockReader())
+	}
+}
+
+func BenchmarkHandle(b *testing.B) {
+	records, _ := prepare(mockReader())
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		handle(records)
+	}
+}
+
+func BenchmarkShapley(b *testing.B) {
+	records, _ := prepare(mockReader())
+	channels, worths, _ := handle(records)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		shapley(channels, worths)
 	}
 }
