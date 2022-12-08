@@ -7,33 +7,38 @@ run:
   go: '1.17'
 
 linters-settings:
-  govet:
-    check-shadowing: true
-  golint:
-    min-confidence: 0.1
   dupl:
     threshold: 100
-  gocyclo:
-    min-complexity: 15
-  maligned:
-    suggest-new: true
   goconst:
     min-len: 2
     min-occurrences: 2
-  misspell:
-    locale: US
-  lll:
-    line-length: 140
   gocritic:
     enabled-tags:
       - performance
       - style
       - experimental
       - diagnostic
+    disabled-checks:
+      - unnamedResult
     settings:
       hugeParam:
         sizeThreshold: 512
-
+  gocyclo:
+    min-complexity: 15
+  govet:
+    check-shadowing: true
+    enable:
+      - fieldalignment
+      - nilness
+      - sigchanyzer
+      - stringintconv
+      - unusedwrite
+  lll:
+    line-length: 140
+  misspell:
+    locale: US
+  nlreturn:
+    block-size: 4
 
 linters:
   enable:
@@ -41,14 +46,23 @@ linters:
     - exportloopref
     - gas
     - gochecknoinits
+    - goconst
     - gocritic
     - gocyclo
     - gosimple
     - govet
     - ineffassign
+    - ireturn
+    - lll
+    - maintidx
+    - makezero
     - megacheck
     - misspell
     - nakedret
+    - nilerr
+    - nilnil
+    - nlreturn
+    - nolintlint
     - prealloc
     - revive
     - stylecheck
@@ -56,6 +70,8 @@ linters:
     - unconvert
     - unparam
     - unused
+    - usestdlibvars
+    - wastedassign
   fast: false
   disable-all: true
 
@@ -69,8 +85,11 @@ issues:
         - golint
     - path: _test\.go
       linters:
-        - gosec
         - dupl
+        - gosec
+        - govet
+        - lll
+        - nlreturn
 
 service:
   golangci-lint-version: 1.50.x
