@@ -21,10 +21,10 @@ lint:
 	@golangci-lint run
 
 run:
-	@$(GORUN) .
+	@$(GORUN) . $(args)
 
 run-race:
-	@$(GORUN) -race .
+	@$(GORUN) -race . $(args)
 
 bench-prepare:
 	@$(BENCH)=BenchmarkPrepare
@@ -42,9 +42,9 @@ profiles: info
 	@$(GORUN) . -cpuprofile=true && $(GORUN) . -memprofile=true
 
 build:
-	@go build -ldflags "-s -w"
+	@go build -ldflags "-s -w" $(args)
 
 build-linux:
-	@CGO_ENABLED=0 GOOS=linux go build -ldflags "-s -w"
+	@CGO_ENABLED=0 GOOS=linux go build -ldflags "-s -w" $(args)
 
 .PHONY: info data test test-race lint run run-race bench-prepare bench-handle bench-shapley benchmarks profiles build build-linux

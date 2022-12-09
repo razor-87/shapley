@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/csv"
+	"bufio"
 	"flag"
 	"fmt"
 	"io"
@@ -32,6 +32,7 @@ type sValues struct {
 var (
 	cpuprofile = flag.Bool("cpuprofile", false, "write cpu profile to cpu.prof")
 	memprofile = flag.Bool("memprofile", false, "write memory profile to mem.prof")
+	genes      = flag.Int("genes", 9, "number of genes")
 )
 
 func main() {
@@ -57,7 +58,7 @@ func run() error {
 		defer pprof.StopCPUProfile()
 	}
 
-	f, err := os.Open("data.csv")
+	f, err := os.Open("data/N" + strconv.Itoa(*genes))
 	if err != nil {
 		return fmt.Errorf("failed to open csv file, %w", err)
 	}
@@ -67,7 +68,7 @@ func run() error {
 		}
 	}()
 
-	records, err := prepare(f)
+	records, err := prepare(f, *genes)
 	if err != nil {
 		return fmt.Errorf("failed to prepare data, %w", err)
 	}
@@ -80,7 +81,7 @@ func run() error {
 	sValues, checkSum := shapley(channels, worths)
 	if !(*cpuprofile || *memprofile) {
 		for channel, value := range sValues {
-			fmt.Printf("Channel: %s, Shapley value: %f\n", channel, value)
+			fmt.Printf("Gene: %s, Shapley value: %f\n", channel, value)
 		}
 	}
 	if notEqualsOne(checkSum) {
@@ -102,12 +103,15 @@ func run() error {
 	return nil
 }
 
-func prepare(r io.Reader) ([][]string, error) {
-	cr := csv.NewReader(r)
-	cr.Comma = ';'
-	records, err := cr.ReadAll()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read csv file, %w", err)
+func prepare(r io.Reader, g int) ([][]string, error) {
+	records := make([][]string, 0, (1<<g)-1)
+	sc := bufio.NewScanner(r)
+	for sc.Scan() {
+		record := strings.Split(sc.Text(), ",")
+		if l := len(record); l < 2 {
+			return nil, fmt.Errorf("length of row less 2, %d", l)
+		}
+		records = append(records, record)
 	}
 
 	return records, nil
@@ -117,19 +121,15 @@ func handle(records [][]string) (channels []string, worths map[string]float64, e
 	set := make(map[string]struct{})
 	cValues := make(map[string]float64, len(records))
 	for _, rec := range records {
-		if l := len(rec); l < 2 {
-			return nil, nil, fmt.Errorf("length of slice less 2, %d", l)
-		}
-
-		row := strings.Split(rec[0], ",")
-		sort.Strings(row)
-		coalition := strings.Join(row, " ")
+		vec := strings.Fields(rec[0])
+		sort.Strings(vec)
+		coalition := strings.Join(vec, " ")
 		val, err := strconv.ParseFloat(rec[1], 64)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to convert string to int, %w", err)
 		}
 
-		for _, source := range row {
+		for _, source := range vec {
 			set[source] = struct{}{}
 		}
 		cValues[coalition] = val
