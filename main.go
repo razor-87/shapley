@@ -55,14 +55,8 @@ func run() error {
 		return fmt.Errorf("failed to handle data, %w", err)
 	}
 
-	sValues := shapley(channels, worths)
-	if err != nil {
-		return fmt.Errorf("failed to calculate Shapley values, %w", err)
-	}
-
-	var checkSum float64
+	sValues, checkSum := shapley(channels, worths)
 	for channel, value := range sValues {
-		checkSum += value
 		fmt.Printf("Channel: %s, Shapley value: %f\n", channel, value)
 	}
 	if notEqualsOne(checkSum) {
@@ -133,7 +127,7 @@ func containsAll(coalition, c string) bool {
 	return true
 }
 
-func shapley(channels []string, worths map[string]float64) map[string]float64 {
+func shapley(channels []string, worths map[string]float64) (map[string]float64, float64) {
 	n := len(channels)
 	svs := &sValues{values: make(map[string]float64, n)}
 
@@ -209,7 +203,12 @@ func shapley(channels []string, worths map[string]float64) map[string]float64 {
 	}
 	wgg.Wait()
 
-	return svs.values
+	var sum float64
+	for _, value := range svs.values {
+		sum += value
+	}
+
+	return svs.values, sum
 }
 
 func makeSubsetsIdxs(n int, sets []chan []int) {

@@ -122,11 +122,14 @@ func Test_shapley(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := shapley(tt.args.channels, tt.args.worths)
+			got, got1 := shapley(tt.args.channels, tt.args.worths)
 			for key, value := range got {
 				if wantValue := tt.want[key]; math.Abs(wantValue-value) > 1e-9 {
 					t.Errorf("wantValue = %v, gotValue = %v", wantValue, value)
 				}
+			}
+			if notEqualsOne(got1) {
+				t.Errorf("shapley() got1 = %v, want 1", got1)
 			}
 		})
 	}
