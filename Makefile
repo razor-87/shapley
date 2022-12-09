@@ -8,6 +8,9 @@ GORUN=go run
 info:
 	- @echo "revision $(REV)"
 
+data:
+	@python ./scripts/generate_data.py
+
 test:
 	go test -v ./...
 
@@ -44,4 +47,4 @@ build:
 build-linux:
 	@CGO_ENABLED=0 GOOS=linux go build -ldflags "-s -w"
 
-.PHONY: info test test-race lint run run-race bench-prepare bench-handle bench-shapley benchmarks profiles build build-linux
+.PHONY: info data test test-race lint run run-race bench-prepare bench-handle bench-shapley benchmarks profiles build build-linux
