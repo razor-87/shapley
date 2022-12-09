@@ -11,17 +11,21 @@ import (
 )
 
 const data = `
-Google;0.18
-Meta;0.04
-Microsoft;0.08
-Meta,Google;0.1
-Microsoft,Google;0.26
-Meta,Microsoft;0.07
-Meta,Microsoft,Google;0.27
+Google,0.18
+Meta,0.04
+Microsoft,0.08
+Meta Google,0.1
+Microsoft Google,0.26
+Meta Microsoft,0.07
+Meta Microsoft Google,0.27
 `
 
+func mockData() io.Reader {
+	return strings.NewReader(strings.TrimSpace(data))
+}
+
 func mockRecords() [][]string {
-	return [][]string{{"Google", "0.18"}, {"Meta", "0.04"}, {"Microsoft", "0.08"}, {"Meta,Google", "0.1"}, {"Microsoft,Google", "0.26"}, {"Meta,Microsoft", "0.07"}, {"Meta,Microsoft,Google", "0.27"}}
+	return [][]string{{"Google", "0.18"}, {"Meta", "0.04"}, {"Microsoft", "0.08"}, {"Meta Google", "0.1"}, {"Microsoft Google", "0.26"}, {"Meta Microsoft", "0.07"}, {"Meta Microsoft Google", "0.27"}}
 }
 
 func mockChannels() []string {
@@ -32,14 +36,15 @@ func mockWorths() map[string]float64 {
 	return map[string]float64{"Google": 0.18, "Google Meta": 0.32, "Google Meta Microsoft": 1, "Google Microsoft": 0.52, "Meta": 0.04, "Meta Microsoft": 0.19, "Microsoft": 0.08}
 }
 
-func mockReader() io.Reader {
-	f, _ := os.ReadFile("data.csv")
-	return bytes.NewReader(f)
+func mockReader() (io.Reader, int) {
+	f, _ := os.ReadFile("data/N11")
+	return bytes.NewReader(f), 11
 }
 
 func Test_prepare(t *testing.T) {
 	type args struct {
 		r io.Reader
+		g int
 	}
 	tests := []struct {
 		name    string
@@ -49,13 +54,13 @@ func Test_prepare(t *testing.T) {
 	}{
 		{
 			name: "simple",
-			args: args{r: strings.NewReader(data)},
+			args: args{r: mockData(), g: 3},
 			want: mockRecords(),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := prepare(tt.args.r)
+			got, err := prepare(tt.args.r, tt.args.g)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("prepare() error = %v, wantErr %v", err, tt.wantErr)
 				return
