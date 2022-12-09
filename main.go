@@ -2,11 +2,14 @@ package main
 
 import (
 	"encoding/csv"
+	"flag"
 	"fmt"
 	"io"
 	"log"
 	"math"
 	"os"
+	"runtime"
+	"runtime/pprof"
 	"sort"
 	"strconv"
 	"strings"
@@ -26,7 +29,14 @@ type sValues struct {
 	mu     sync.Mutex
 }
 
+var (
+	cpuprofile = flag.Bool("cpuprofile", false, "write cpu profile to cpu.prof")
+	memprofile = flag.Bool("memprofile", false, "write memory profile to mem.prof")
+)
+
 func main() {
+	flag.Parse()
+
 	start := time.Now()
 	if err := run(); err != nil {
 		log.Fatalf("[ERROR] %v", err)
@@ -35,6 +45,18 @@ func main() {
 }
 
 func run() error {
+	if *cpuprofile {
+		f, err := os.Create("cpu.prof")
+		if err != nil {
+			return fmt.Errorf("could not create CPU profile: %w", err)
+		}
+		defer f.Close()
+		if err := pprof.StartCPUProfile(f); err != nil {
+			return fmt.Errorf("could not start CPU profile: %w", err)
+		}
+		defer pprof.StopCPUProfile()
+	}
+
 	f, err := os.Open("data.csv")
 	if err != nil {
 		return fmt.Errorf("failed to open csv file, %w", err)
@@ -56,11 +78,25 @@ func run() error {
 	}
 
 	sValues, checkSum := shapley(channels, worths)
-	for channel, value := range sValues {
-		fmt.Printf("Channel: %s, Shapley value: %f\n", channel, value)
+	if !(*cpuprofile || *memprofile) {
+		for channel, value := range sValues {
+			fmt.Printf("Channel: %s, Shapley value: %f\n", channel, value)
+		}
 	}
 	if notEqualsOne(checkSum) {
 		return fmt.Errorf("sum of Shapley values isn't equal to one, %v", checkSum)
+	}
+
+	if *memprofile {
+		f, err := os.Create("mem.prof")
+		if err != nil {
+			return fmt.Errorf("could not create memory profile: %w", err)
+		}
+		defer f.Close()
+		runtime.GC() // get up-to-date statistics
+		if err := pprof.WriteHeapProfile(f); err != nil {
+			return fmt.Errorf("could not write memory profile: %w", err)
+		}
 	}
 
 	return nil

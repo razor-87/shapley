@@ -28,3 +28,6 @@ go.work
 
 # sources
 .src/
+
+# profiles
+*.prof
