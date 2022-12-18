@@ -10,6 +10,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"runtime/trace"
 	"sort"
 	"strconv"
 	"strings"
@@ -32,20 +33,47 @@ type sValues struct {
 var (
 	cpuprofile = flag.Bool("cpuprofile", false, "write cpu profile to cpu.prof")
 	memprofile = flag.Bool("memprofile", false, "write memory profile to mem.prof")
+	tracing    = flag.Bool("trace", false, "write tracing the execution of a program to trace.out")
 	genes      = flag.Int("genes", 9, "number of genes")
 )
 
 func main() {
 	flag.Parse()
-
-	start := time.Now()
-	if err := run(); err != nil {
+	var r func() error
+	if noFlags := !(*cpuprofile || *tracing || *memprofile); noFlags {
+		r = run
+	} else {
+		r = runWithFlags
+	}
+	if err := r(); err != nil {
 		log.Fatalf("[ERROR] %v", err)
 	}
-	fmt.Printf("Measure time: %s\n", time.Since(start))
 }
 
 func run() error {
+	start := time.Now()
+	sValues, err := calc()
+	if err != nil {
+		return err
+	}
+	elapsed := time.Since(start)
+
+	genes := make([]string, 0, len(sValues))
+	for gene := range sValues {
+		genes = append(genes, gene)
+	}
+	sort.Slice(genes, func(i, j int) bool {
+		return sValues[genes[i]] < sValues[genes[j]]
+	})
+	for _, gene := range genes {
+		fmt.Printf("Gene: %s, Shapley value: %f\n", gene, sValues[gene])
+	}
+	fmt.Printf("Measure time: %s\n", elapsed)
+
+	return nil
+}
+
+func runWithFlags() error {
 	if *cpuprofile {
 		f, err := os.Create("cpu.prof")
 		if err != nil {
@@ -57,35 +85,20 @@ func run() error {
 		}
 		defer pprof.StopCPUProfile()
 	}
-
-	f, err := os.Open("data/N" + strconv.Itoa(*genes))
-	if err != nil {
-		return fmt.Errorf("failed to open csv file, %w", err)
-	}
-	defer func() {
-		if err = f.Close(); err != nil {
-			log.Printf("[WARN] closing file: %v", err)
+	if *tracing {
+		f, err := os.Create("trace.out")
+		if err != nil {
+			return fmt.Errorf("failed to create trace output file: %w", err)
 		}
-	}()
-
-	records, err := prepare(f, *genes)
-	if err != nil {
-		return fmt.Errorf("failed to prepare data, %w", err)
-	}
-
-	channels, worths, err := handle(records)
-	if err != nil {
-		return fmt.Errorf("failed to handle data, %w", err)
-	}
-
-	sValues, checkSum := shapley(channels, worths)
-	if !(*cpuprofile || *memprofile) {
-		for channel, value := range sValues {
-			fmt.Printf("Gene: %s, Shapley value: %f\n", channel, value)
+		defer f.Close()
+		if err := trace.Start(f); err != nil {
+			return fmt.Errorf("failed to start trace: %w", err)
 		}
+		defer trace.Stop()
 	}
-	if notEqualsOne(checkSum) {
-		return fmt.Errorf("sum of Shapley values isn't equal to one, %v", checkSum)
+
+	if _, err := calc(); err != nil {
+		return err
 	}
 
 	if *memprofile {
@@ -101,6 +114,35 @@ func run() error {
 	}
 
 	return nil
+}
+
+func calc() (map[string]float64, error) {
+	f, err := os.Open("data/N" + strconv.Itoa(*genes))
+	if err != nil {
+		return nil, fmt.Errorf("failed to open csv file, %w", err)
+	}
+	defer func() {
+		if err = f.Close(); err != nil {
+			log.Printf("[WARN] closing file: %v", err)
+		}
+	}()
+
+	records, err := prepare(f, *genes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare data, %w", err)
+	}
+
+	channels, worths, err := handle(records)
+	if err != nil {
+		return nil, fmt.Errorf("failed to handle data, %w", err)
+	}
+
+	sValues, checkSum := shapley(channels, worths)
+	if notEqualsOne(checkSum) {
+		return nil, fmt.Errorf("sum of Shapley values isn't equal to one, %v", checkSum)
+	}
+
+	return sValues, nil
 }
 
 func prepare(r io.Reader, g int) ([][]string, error) {

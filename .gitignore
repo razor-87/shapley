@@ -31,3 +31,6 @@ go.work
 
 # profiles
 *.prof
+
+# trace
+*.out

@@ -56,7 +56,13 @@ pprof-cpu: info cpu.prof
 pprof-mem: info mem.prof
 	@$(PPROF) mem.prof
 
+trace.out:
+	@$(GORUNMAX) -trace=true
+
+trace: info trace.out
+	@go tool trace trace.out
+
 build:
 	@$(GOBUILD) -ldflags "-s -w"
 
-.PHONY: info lint data test test-race run run-race bench-prepare bench-handle bench-shapley benchmarks escape pprof-cpu pprof-mem build
+.PHONY: info lint data test test-race run run-race bench-prepare bench-handle bench-shapley benchmarks escape pprof-cpu pprof-mem trace build
