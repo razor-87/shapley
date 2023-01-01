@@ -34,3 +34,6 @@ go.work
 
 # trace
 *.out
+
+# benchstat
+*.before
