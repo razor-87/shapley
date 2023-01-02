@@ -23,16 +23,17 @@ import (
 const epsilon = 1e-9
 
 var (
-	cpuprofile = flag.Bool("cpuprofile", false, "write cpu profile to cpu.prof")
-	memprofile = flag.Bool("memprofile", false, "write memory profile to mem.prof")
-	tracing    = flag.Bool("trace", false, "write tracing the execution of a program to trace.out")
-	genes      = flag.Int("genes", 9, "number of genes")
+	cpuprofile   = flag.Bool("cpuprofile", false, "write cpu profile to cpu.prof")
+	memprofile   = flag.Bool("memprofile", false, "write memory profile to mem.prof")
+	blockprofile = flag.Bool("blockprofile", false, "write block profile to block.prof")
+	tracing      = flag.Bool("trace", false, "write tracing the execution of a program to trace.out")
+	genes        = flag.Int("genes", 9, "number of genes")
 )
 
 func main() {
 	flag.Parse()
 	var r func() error
-	if noFlags := !(*cpuprofile || *tracing || *memprofile); noFlags {
+	if noFlags := !(*cpuprofile || *memprofile || *blockprofile || *tracing); noFlags {
 		r = run
 	} else {
 		r = runWithFlags
@@ -76,6 +77,19 @@ func runWithFlags() error {
 			return fmt.Errorf("could not start CPU profile: %w", err)
 		}
 		defer pprof.StopCPUProfile()
+	}
+	if *blockprofile {
+		runtime.SetBlockProfileRate(1)
+		f, err := os.Create("block.prof")
+		if err != nil {
+			return fmt.Errorf("could not create block profile: %w", err)
+		}
+		defer f.Close()
+		defer func() {
+			if err = pprof.Lookup("block").WriteTo(f, 0); err != nil {
+				log.Printf("[WARN] write to file: %v", err)
+			}
+		}()
 	}
 	if *tracing {
 		f, err := os.Create("trace.out")

@@ -50,11 +50,17 @@ cpu.prof:
 mem.prof:
 	@$(GORUNMAX) -memprofile=true
 
+block.prof:
+	@$(GORUNMAX) -blockprofile=true
+
 pprof-cpu: info cpu.prof
 	@$(PPROF) cpu.prof
 
 pprof-mem: info mem.prof
 	@$(PPROF) mem.prof
+
+pprof-block: info block.prof
+	@$(PPROF) block.prof
 
 trace.out:
 	@$(GORUNMAX) -trace=true
@@ -68,4 +74,4 @@ benchstat:
 build:
 	@$(GOBUILD) -ldflags "-s -w"
 
-.PHONY: info lint data test test-race run run-race bench-prepare bench-handle bench-shapley benchmarks escape pprof-cpu pprof-mem trace benchstat build
+.PHONY: info lint data test test-race run run-race bench-prepare bench-handle bench-shapley benchmarks escape pprof-cpu pprof-mem pprof-block trace benchstat build
