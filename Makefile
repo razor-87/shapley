@@ -2,7 +2,7 @@ B=$(shell git rev-parse --abbrev-ref HEAD)
 BRANCH=$(subst /,-,$(B))
 GITREV=$(shell git describe --abbrev=7 --always --tags)
 REV=$(GITREV)-$(BRANCH)
-BENCH=go test -count=4 -benchmem -bench
+BENCH=go test -count=8 -benchmem -bench
 GORUN=go run
 GORUNMAX=$(GORUN) . -genes=13
 GOBUILD=CGO_ENABLED=0 GOOS=linux go build
@@ -30,16 +30,16 @@ run-race:
 	@$(GORUN) -race . $(args)
 
 bench-prepare:
-	@$(BENCH)=BenchmarkPrepare -run=^$
+	@$(BENCH)=BenchmarkPrepare -benchtime=1000x -run=^$
 
 bench-handle:
-	@$(BENCH)=BenchmarkHandle -run=^$
+	@$(BENCH)=BenchmarkHandle -benchtime=2x -run=^$
 
 bench-shapley:
-	@$(BENCH)=BenchmarkShapley -run=^$
+	@$(BENCH)=BenchmarkShapley -benchtime=100x -run=^$
 
 benchmarks:
-	@go test -bench=. -count=2 -benchmem -run=^$
+	@go test -bench=. -count=4 -benchmem -run=^$
 
 escape: info
 	@$(GOBUILD) -v -gcflags "-m -m" && rm -rf ./shapley
