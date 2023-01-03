@@ -283,8 +283,8 @@ func makeSubsetsIdxs(n int, powersets []chan []int) {
 			}
 		}()
 
+		var subsetIndexes []int
 		for bin := 1; bin <= max; bin++ { // if bin := 1 that without a null set
-			var subsetIndexes []int
 			for i := 0; i < n; i++ {
 				if (1<<i)&bin > 0 {
 					subsetIndexes = append(subsetIndexes, i)
@@ -294,6 +294,8 @@ func makeSubsetsIdxs(n int, powersets []chan []int) {
 			for _, powerset := range powersets {
 				powerset <- subsetIndexes
 			}
+
+			subsetIndexes = make([]int, 0, len(subsetIndexes)+1)
 		}
 	}()
 }
