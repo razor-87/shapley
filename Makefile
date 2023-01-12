@@ -17,6 +17,9 @@ lint:
 data:
 	@python ./scripts/generate_data.py
 
+gen:
+	go generate gen.go
+
 test:
 	go test -v ./...
 
@@ -74,4 +77,4 @@ benchstat:
 build:
 	@$(GOBUILD) -ldflags "-s -w"
 
-.PHONY: info lint data test test-race run run-race bench-prepare bench-handle bench-shapley benchmarks escape pprof-cpu pprof-mem pprof-block trace benchstat build
+.PHONY: info lint gen data test test-race run run-race bench-prepare bench-handle bench-shapley benchmarks escape pprof-cpu pprof-mem pprof-block trace benchstat build

@@ -214,6 +214,7 @@ func containsAll(coalition, c string) bool {
 func shapley(players []string, worths map[string]float64) (map[string]float64, float64) {
 	n := len(players)
 	vector := make([]float64, n)
+	weight := makeWeight(n)
 
 	powersets := make([]chan []int, n)
 	buffer := 1 << (n / 2)
@@ -248,14 +249,12 @@ func shapley(players []string, worths map[string]float64) (map[string]float64, f
 				sort.Strings(Si)
 				Ai := strings.Join(Si, " ")
 
-				nominator := factorial(k) * factorial(n-k-1)
-				denominator := factorial(n)
 				// Weight = |S|!(n-|S|-1)!/n!
-				weight := nominator / denominator
+				w := weight(k)
 				// Marginal contribution = v(S U {i})-v(S)
 				contrib := worths[Ai] - worths[A]
 
-				pSum += weight * contrib
+				pSum += w * contrib
 			}
 
 			vector[i] = pSum + worths[player]/float64(n)
@@ -300,13 +299,11 @@ func makeSubsetsIdxs(n int, powersets []chan []int) {
 	}()
 }
 
-func factorial(n int) float64 {
-	if n >= upperLimit {
-		panic(fmt.Errorf("factorials upper limit"))
-	}
-	return float64(factorials[n])
-}
-
 func notEqualsOne(f float64) bool {
 	return math.Abs(f-1) > epsilon
+}
+
+func makeWeight(n int) func(k int) float64 {
+	wsn := weights[n]
+	return func(k int) float64 { return wsn[k] }
 }
