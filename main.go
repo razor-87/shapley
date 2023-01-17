@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"math"
+	"math/bits"
 	"os"
 	"runtime"
 	"runtime/pprof"
@@ -16,8 +17,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"golang.org/x/exp/slices"
 )
 
 const epsilon = 1e-9
@@ -138,12 +137,12 @@ func calc() (map[string]float64, error) {
 		return nil, fmt.Errorf("failed to prepare data, %w", err)
 	}
 
-	players, worths, err := handle(records)
+	players, bitset, worths, err := handle(records)
 	if err != nil {
 		return nil, fmt.Errorf("failed to handle data, %w", err)
 	}
 
-	sValues, checkSum := shapley(players, worths)
+	sValues, checkSum := shapley(players, bitset, worths)
 	if notEqualsOne(checkSum) {
 		return nil, fmt.Errorf("sum of Shapley values isn't equal to one, %v", checkSum)
 	}
@@ -165,61 +164,57 @@ func prepare(r io.Reader, g int) ([][]string, error) {
 	return records, nil
 }
 
-func handle(records [][]string) (players []string, worths map[string]float64, err error) {
-	set := make(map[string]struct{})
-	cValues := make(map[string]float64, len(records))
-	for _, rec := range records {
-		vec := strings.Fields(rec[0])
-		sort.Strings(vec)
-		coalition := strings.Join(vec, " ")
-		val, err := strconv.ParseFloat(rec[1], 64)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to convert string to int, %w", err)
-		}
-
-		for _, source := range vec {
-			set[source] = struct{}{}
-		}
-		cValues[coalition] = val
-	}
-
-	players = make([]string, 0, len(set))
-	for player := range set {
-		players = append(players, player)
-	}
+func handle(records [][]string) (players []string, bitset []uint16, worths map[uint16]float64, err error) {
+	lenRecords := len(records)
+	players = strings.Fields(records[lenRecords-1][0])
 	sort.Strings(players)
 
-	worths = make(map[string]float64, len(records))
-	for coalition := range cValues {
-		for c := range cValues {
-			if containsAll(coalition, c) {
-				worths[coalition] += cValues[c]
+	lenPlayers := len(players)
+	bitset = make([]uint16, lenPlayers)
+	mapBits := make(map[string]uint16, lenPlayers)
+	var bit uint16
+	for i, player := range players {
+		bit = 1 << i
+		bitset[i] = bit
+		mapBits[player] = bit
+	}
+
+	cValues := make(map[uint16]float64, lenRecords)
+	worths = make(map[uint16]float64, lenRecords)
+	for _, rec := range records {
+		vec := strings.Fields(rec[0])
+		coalition := mapBits[vec[0]]
+		for _, v := range vec[1:] {
+			coalition |= mapBits[v]
+		}
+
+		var worth float64
+		for bit, cValue := range cValues {
+			if coalition^(coalition|bit) == 0 {
+				worth += cValue
 			}
 		}
-	}
 
-	return players, worths, nil
-}
-
-func containsAll(coalition, c string) bool {
-	for _, player := range strings.Fields(c) {
-		if !strings.Contains(coalition, player) {
-			return false
+		cValue, err := strconv.ParseFloat(rec[1], 64)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to convert string to int, %w", err)
 		}
+		cValues[coalition] = cValue
+		worths[coalition] = worth + cValue
 	}
 
-	return true
+	return players, bitset, worths, nil
 }
 
-func shapley(players []string, worths map[string]float64) (map[string]float64, float64) {
+func shapley(players []string, bitset []uint16, worths map[uint16]float64) (map[string]float64, float64) {
 	n := len(players)
 	vector := make([]float64, n)
 	weight := makeWeight(n)
 
-	powersets := make([]chan []int, n)
+	powersets := make([]chan uint16, n)
 	buffer := 1 << (n / 2)
 	for ch := 0; ch < n; ch++ {
-		powersets[ch] = make(chan []int, buffer)
+		powersets[ch] = make(chan uint16, buffer)
 	}
 
 	go func() {
@@ -228,37 +223,28 @@ func shapley(players []string, worths map[string]float64) (map[string]float64, f
 
 	var wgg sync.WaitGroup
 	wgg.Add(n)
-	for i, player := range players {
-		go func(i int, player string) {
+	for i, bs := range bitset {
+		go func(i int, bs uint16) {
 			defer wgg.Done()
 
 			var pSum float64
-			for idxs := range powersets[i] {
-				if slices.Contains(idxs, i) {
+			for S := range powersets[i] {
+				if S&bs != 0 {
 					continue
 				}
 
-				S := make([]string, len(idxs))
-				for ii := range idxs {
-					S[ii] = players[idxs[ii]]
-				}
-				k := len(S)
-				A := strings.Join(S, " ")
-				Si := S
-				Si = append(Si, player)
-				sort.Strings(Si)
-				Ai := strings.Join(Si, " ")
-
+				k := bits.OnesCount16(S)
+				Si := S | bs
 				// Weight = |S|!(n-|S|-1)!/n!
 				w := weight(k)
 				// Marginal contribution = v(S U {i})-v(S)
-				contrib := worths[Ai] - worths[A]
+				contrib := worths[Si] - worths[S]
 
 				pSum += w * contrib
 			}
 
-			vector[i] = pSum + worths[player]/float64(n)
-		}(i, player)
+			vector[i] = pSum + worths[bs]/float64(n)
+		}(i, bs)
 	}
 	wgg.Wait()
 
@@ -272,7 +258,7 @@ func shapley(players []string, worths map[string]float64) (map[string]float64, f
 	return sValues, vSum
 }
 
-func makeSubsetsIdxs(n int, powersets []chan []int) {
+func makeSubsetsIdxs(n int, powersets []chan uint16) {
 	max := (1 << n) - 1
 
 	go func() {
@@ -282,19 +268,10 @@ func makeSubsetsIdxs(n int, powersets []chan []int) {
 			}
 		}()
 
-		var subsetIndexes []int
-		for bin := 1; bin <= max; bin++ { // if bin := 1 that without a null set
-			for i := 0; i < n; i++ {
-				if (1<<i)&bin > 0 {
-					subsetIndexes = append(subsetIndexes, i)
-				}
-			}
-
+		for set := 1; set <= max; set++ { // if set := 1 that without a null set
 			for _, powerset := range powersets {
-				powerset <- subsetIndexes
+				powerset <- uint16(set)
 			}
-
-			subsetIndexes = make([]int, 0, len(subsetIndexes)+1)
 		}
 	}()
 }
