@@ -14,9 +14,10 @@ before=$(git describe --abbrev=10 --always)."${tag}".before
 if [ ! -f "${before}" ]; then
   rm -rf -- *."${tag}".before
   git stash push -m "after" >/dev/null 2>&1
+  sleep 0.5
   make -s "${bench}" >"${before}"
   git stash pop "stash@{0.after}" >/dev/null 2>&1
-  sleep 0.1
+  sleep 0.5
 fi
 make -s "${bench}" >stash.after
 
