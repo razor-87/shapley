@@ -224,6 +224,8 @@ func shapley(players []string, bitset []uint16, worths map[uint16]float64) (map[
 	var wgg sync.WaitGroup
 	wgg.Add(n)
 	for i, bs := range bitset {
+		vector[i] = worths[bs] / float64(n)
+
 		go func(i int, bs uint16) {
 			defer wgg.Done()
 
@@ -243,7 +245,7 @@ func shapley(players []string, bitset []uint16, worths map[uint16]float64) (map[
 				pSum += w * contrib
 			}
 
-			vector[i] = pSum + worths[bs]/float64(n)
+			vector[i] += pSum
 		}(i, bs)
 	}
 	wgg.Wait()
