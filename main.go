@@ -190,7 +190,7 @@ func handle(records [][]string) (players []string, bitset []uint16, worths map[u
 
 		var worth float64
 		for bit, cValue := range cValues {
-			if coalition^(coalition|bit) == 0 {
+			if ^coalition&bit == 0 {
 				worth += cValue
 			}
 		}
