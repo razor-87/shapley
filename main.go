@@ -160,6 +160,9 @@ func prepare(r io.Reader, g int) ([][]string, error) {
 		}
 		records = append(records, record)
 	}
+	if err := sc.Err(); err != nil {
+		return nil, fmt.Errorf("failed to scan tokens, %w", err)
+	}
 
 	return records, nil
 }
