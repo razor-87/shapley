@@ -182,7 +182,7 @@ func handle(records [][]string) (players []string, bitset []uint16, worths map[u
 		mapBits[player] = bit
 	}
 
-	cValues := make(map[uint16]float64, lenRecords)
+	cValues := make([]float64, 1<<lenPlayers)
 	worths = make(map[uint16]float64, lenRecords)
 	for _, rec := range records {
 		vec := strings.Fields(rec[0])
@@ -193,7 +193,7 @@ func handle(records [][]string) (players []string, bitset []uint16, worths map[u
 
 		var worth float64
 		for bit, cValue := range cValues {
-			if ^coalition&bit == 0 {
+			if ^coalition&uint16(bit) == 0 {
 				worth += cValue
 			}
 		}
