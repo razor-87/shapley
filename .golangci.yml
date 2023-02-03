@@ -92,4 +92,4 @@ issues:
         - nlreturn
 
 service:
-  golangci-lint-version: 1.50.x
+  golangci-lint-version: 1.54.x
