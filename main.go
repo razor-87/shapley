@@ -264,21 +264,18 @@ func shapley(players []string, bitset []uint16, worths map[uint16]float64) (map[
 }
 
 func makeSubsetsIdxs(n int, powersets []chan uint16) {
-	max := (1 << n) - 1
-
-	go func() {
-		defer func() {
-			for _, powerset := range powersets {
-				close(powerset)
-			}
-		}()
-
-		for set := 1; set <= max; set++ { // if set := 1 that without a null set
-			for _, powerset := range powersets {
-				powerset <- uint16(set)
-			}
+	defer func() {
+		for _, powerset := range powersets {
+			close(powerset)
 		}
 	}()
+
+	max := (1 << n) - 1
+	for set := 1; set <= max; set++ { // if set := 1 that without a null set
+		for _, powerset := range powersets {
+			powerset <- uint16(set)
+		}
+	}
 }
 
 func notEqualsOne(f float64) bool {
